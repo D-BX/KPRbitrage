@@ -3,6 +3,9 @@ import aiohttp
 from apicalls import call_markets, kalshi_books, polymarket_books
 from nlpsem import market_match
 from spread import check_arbitrage
+from alerts import discord_alerts
+
+WEBHOOK_URL = "https://discord.com/api/webhooks/1475157685904216115/Ehv4kth_mHbSjTWa6wLusYvQ3fdOgk18Dg9gY3pTcok4LtSUqLxEmHzBg6ENbJsMhjDN"
 
 async def runner(volume_size=100, interval=30):
     print("starting bot")
@@ -55,6 +58,9 @@ async def runner(volume_size=100, interval=30):
                             print(f"net cost: ${arb['net_cost']}")
                             print(f"money makin: ${arb['total_expected_profit']}\n")
 
+                            # async discord alert
+                            await discord_alerts(session, WEBHOOK_URL, arb)
+
             except Exception as e:
                 print(f"network or parsing error {e}")
             
@@ -63,4 +69,4 @@ async def runner(volume_size=100, interval=30):
 
 
 if __name__ == "__main__":
-    asyncio.run(runner(volume_size=100, interval=2))
+    asyncio.run(runner(volume_size=20, interval=2))
