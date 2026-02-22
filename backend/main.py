@@ -4,11 +4,14 @@ from apicalls import call_markets, kalshi_books, polymarket_books
 from nlpsem import market_match
 from spread import check_arbitrage
 from alerts import discord_alerts
+from database import init_db, get_cached_matches, save_new_matches
 
 WEBHOOK_URL = "https://discord.com/api/webhooks/1475157685904216115/Ehv4kth_mHbSjTWa6wLusYvQ3fdOgk18Dg9gY3pTcok4LtSUqLxEmHzBg6ENbJsMhjDN"
 
 async def runner(volume_size=100, interval=30):
     print("starting bot")
+
+    await init_db()
 
     # using one session to reuse connection for speed >:)
     async with aiohttp.ClientSession() as session:
@@ -17,25 +20,35 @@ async def runner(volume_size=100, interval=30):
                 print("getting live market")
                 k_markets, p_markets = await call_markets()
 
-                print("NLP semantics")
-                matches = market_match(k_markets, p_markets, threshold=0.85)
-                # arbitrary threshold for profits imma stick w 0.85 for now
+                cached_matches = await get_cached_matches()
+                unmapped_k_markets = [m for m in k_markets if m["id"] not in cached_matches]
 
-                print(f"found {len(matches)} markets")
 
-                # checking the spread and books
-                for match in matches:
-                    k_event = match["kalshi_event"]
-                    p_event = match["poly_event"]
+                if unmapped_k_markets:
+                    print(f"running nlp on {len(unmapped_k_markets)} new markets")
+                    new_matches = market_match(unmapped_k_markets, p_markets, threshold=0.85)
+                    # arbitrary threshold for profits imma stick w 0.85 for now
 
-                    yes_token = p_event.get("yes_token")               
-                    no_token = p_event.get("no_token")
+                    if new_matches:
+                        print(f"found {len(new_matches)} new matches to save to DB")
+                        await save_new_matches(new_matches)
+                        cached_matches = await get_cached_matches()
+                else:
+                    print("all markets cached - skipping NLP")
+
+                print(f"checking the spread and books for {len(cached_matches)} cached markets")
+
+                # checking the spread and books using the cache
+                for kalshi_id, match_data in cached_matches.items():
+                    
+                    yes_token = match_data.get("poly_yes_token")               
+                    no_token = match_data.get("poly_no_token")
 
                     # pm token ids are missing
                     if not yes_token or not no_token:
                         continue
 
-                    k_book_task = asyncio.create_task(kalshi_books(session, k_event["id"]))
+                    k_book_task = asyncio.create_task(kalshi_books(session, kalshi_id))
                     p_yes_task = asyncio.create_task(polymarket_books(session, yes_token))
                     p_no_task = asyncio.create_task(polymarket_books(session, no_token))
 
@@ -43,7 +56,7 @@ async def runner(volume_size=100, interval=30):
 
                     # spread calc
                     arbs = check_arbitrage(
-                        event = k_event["question"],
+                        event = match_data["kalshi_question"],
                         k_book = k_book,
                         p_yes_book = p_yes_book,
                         p_no_book = p_no_book,
@@ -67,6 +80,5 @@ async def runner(volume_size=100, interval=30):
             print(f"done scanning, sleeping for {interval}")
             await asyncio.sleep(interval)
 
-
 if __name__ == "__main__":
-    asyncio.run(runner(volume_size=20, interval=2))
+    asyncio.run(runner(volume_size=20, interval=10))
