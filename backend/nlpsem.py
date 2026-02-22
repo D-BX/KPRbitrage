@@ -30,5 +30,5 @@ def market_match(kalshi_markets, poly_markets, threshold=0.85):
                     "poly_event": poly_markets[j],
                     "confidence_score": round(score, 4)
                 })
+    return matches
 
-                

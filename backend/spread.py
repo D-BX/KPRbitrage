@@ -1,4 +1,7 @@
 def get_poly_blend(asks, target_volume):
+    if not asks:
+        return None
+    
     # we essentially need to buy all the volume at our best price, and if there's remaining we move slowly down
     tot_cost = 0.0
     volume_filled = 0.0
@@ -23,6 +26,8 @@ def get_poly_blend(asks, target_volume):
     return tot_cost / target_volume
 
 def get_kalshi_blend(opposing_bids, target_volume):
+    if not opposing_bids:
+        return None
     # same as PM
     total_cost = 0.0
     volume_filled = 0.0
@@ -82,8 +87,8 @@ def check_arbitrage(event, k_book, p_yes_book, p_no_book, volume=100):
                 })
 
     # no on kalshi, yes on pm
-    k_no_ask = get_kalshi_blended_price(k_book.get("yes", []), volume)
-    p_yes_ask = get_polymarket_blended_price(p_yes_book.get("asks", []), volume)
+    k_no_ask = get_kalshi_blend(k_book.get("yes", []), volume)
+    p_yes_ask = get_poly_blend(p_yes_book.get("asks", []), volume)
 
     if k_no_ask is not None and p_yes_ask is not None:
         gross_2 = k_no_ask + p_yes_ask
