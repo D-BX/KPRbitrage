@@ -1,6 +1,7 @@
 import asyncpg
+import os
 
-DB_URI = "postgresql://app:arb_secret@localhost:5432/vectordb"
+DB_URI = os.getenv("DB_URI", "postgresql://app:arb_secret@localhost:5432/vectordb")
 
 async def init_db():
     # creating a caching table
